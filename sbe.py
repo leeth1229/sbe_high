@@ -1,22 +1,23 @@
 import streamlit as st
 
 import pandas as pd, numpy as np
-import re
-import os
 import altair as alt
-import openpyxl
-from openpyxl import load_workbook
-from datetime import datetime, timedelta
 
 import streamlit_antd_components as sac
 
-from function import risk_function
-from function import ChipItems
+from function_sbe import create_section
+from function_sbe import risk_function
+
+
+st.set_page_config(
+    layout="wide",
+    page_title="Hello",
+    page_icon="👋",
+)
 
 ##########################################################################################
 
 with st.sidebar:
-
     st.markdown(
         """
         ### ❓ QnA 문의
@@ -46,198 +47,108 @@ with tab1:
             """
             )
 
-
 with tab2:
     st.header("공무.SBE 현황표")
-    df_sbe_path = "/home/dataiku/workspace/code_studio-versioned/streamlit/docs/SBE/SBE_test.xlsx"
-    # df_sbe_sheet_ = openpyxl.load_workbook(df_sbe_path)
-    df_sbe_sheet_name_list = ["2023","2024"]
-    df_sbe_sheet_name = st.selectbox("년도선택을 통해 해당년도 SBE view",df_sbe_sheet_name_list)
-    # df_sbe_search1 = st.text_input("공종,공장,PR,PO 등등","")
-    # df_sbe_search2 = st.text_input("SBE명,협력사명","")
-    # df_sbe_search3 = st.text_input("SBE 요약 내용 검색","")
-
-    df_sbe_ = pd.read_excel(df_sbe_path, sheet_name = df_sbe_sheet_name)
-    df_sbe_ = df_sbe_.drop(["년도","No"],axis =1)
-    st.data_editor(
-        data = df_sbe_,
-        use_container_width=True,
-        column_config = {
-            "PR번호":st.column_config.ListColumn(),
-            "PO번호":st.column_config.ListColumn(),
-            "SBE URL":st.column_config.LinkColumn(display_text="Open SBE"),
-            "REF URL":st.column_config.LinkColumn(display_text="Open REF")
-            }
-        )
 
 with tab3:
     st.subheader('_SBE 작성_')
 
-    # 작업단계를 입력
-    SBE_input_work_step = st.text_input("작업단계", value = '', placeholder='Enter Work Step')
+    # 작업단계를 입력하는 섹션
+    with st.container():
+        SBE_input_work_step_temp = st.text_input("작업단계", value='', placeholder='Enter Work Step')
+        st.session_state['SBE_input_work_step'] = SBE_input_work_step_temp
+        if st.button("reset"):
+            st.rerun()
 
-    if SBE_input_work_step != '': # 작업 단계가 입력 되면
+    if 'SBE_input_work_step' in st.session_state and st.session_state['SBE_input_work_step']:
+        SBE_input_work_step = st.session_state['SBE_input_work_step']  # 세션 상태에서 작업단계를 가져옴
 
-        col31, col32, col34 = st.columns(3) # 장소 / 장비공구 / 위험 변수
-        with col31: # 장소
+        with st.container():  # 장소 섹션
+            col31, col32, col33 = st.columns([1, 1, 1])
+            with col31:
+                if 'SBE_input_work_area_list' not in st.session_state:
+                    st.session_state['SBE_input_work_area_list'] = []
+                place_headers = ['위험장소', '유해위험물질취급 장소', '특정 신체영향 장소']
+                place_items = [
+                    ['폭발위험장소(공정구역)', '유해물질 배출 장소', '고/저온물질 접촉지역'],
+                    ['밀폐', '고소', '전기', '회전기계접촉', '차량운행', '중량물취급'],
+                    ['소음발생', '진동발생', '방사선발생']
+                ]
+                SBE_input_work_area_list = create_section('1.작업장소 선택', place_headers, place_items, 'work_area')
+                st.session_state['SBE_input_work_area_list'] = SBE_input_work_area_list
+                st.write(st.session_state['SBE_input_work_area_list'])
 
-            st.subheader('_1.작업장소 선택_')
-            
-            col31_1_1, col31_1_2 = st.columns([1,3]) # 장소1 - 확장
-            with col31_1_1:
-                SBE_input_work_area_1 = sac.chip([
-                        sac.ChipItem(label='위험장소')
-                        ], align='start',multiple=True, index=0)  
-            with col31_1_2:
-                if len(SBE_input_work_area_1) > 0:
-                    SBE_input_work_area_1_ = sac.chip([
-                            sac.ChipItem(label='폭발위험장소(공정구역)'),
-                            sac.ChipItem(label='유해물질 배출 장소'),
-                            sac.ChipItem(label='고/저온물질 접촉지역')
-                            ], align='start',variant='outline', multiple=True)  
+        with st.container():  # 장비/공구 섹션
+            with col32:
+                if 'SBE_input_work_eq_list' not in st.session_state:
+                    st.session_state['SBE_input_work_eq_list'] = []
+                equipment_headers = ['용접/용단', '중장비 사용', '전기/달기구/수공구', '가설물 이용']
+                equipment_items = [
+                    ['발전용접기', '산소절단기'],
+                    ['크레인', '고소작업차', '굴삭기', '지게차', '펌프카', '진공차', 'Jet Car', '항타기/항발기/천공기'],
+                    ['절단기', '파쇄기', '드릴', '발전기/케이블', '수공구', '체인블록/슬링벨트/와이어로프'],
+                    ['가설비계(강관)', '가설비계(이동식)', '사다리(이동식)']
+                ]
+                SBE_input_work_eq_list = create_section('2.장비/공구 선택', equipment_headers, equipment_items, 'work_eq')
+                st.session_state['SBE_input_work_eq_list'] = SBE_input_work_eq_list
+                st.write(st.session_state['SBE_input_work_eq_list'])
 
-            col31_2_1, col31_2_2 = st.columns([1,3]) # 장소2 - 확장
-            with col31_2_1:
-                SBE_input_work_area_2 = sac.chip([
-                        sac.ChipItem(label='유해위험물질취급 장소')
-                        ], align='start',multiple=True, index=0)  
-            with col31_2_2:
-                if len(SBE_input_work_area_2) > 0:
-                    SBE_input_work_area_2_ = sac.chip([
-                            sac.ChipItem(label='밀폐'),
-                            sac.ChipItem(label='고소'),
-                            sac.ChipItem(label='전기'),
-                            sac.ChipItem(label='회전기계접촉'),
-                            sac.ChipItem(label='차량운행'),
-                            sac.ChipItem(label='중량물취급')
-                            ], align='start',variant='outline', multiple=True)  
-
-            col31_3_1, col31_3_2 = st.columns([1,3]) # 장소3 - 확장
-            with col31_3_1:
-                SBE_input_work_area_3 = sac.chip([
-                        sac.ChipItem(label='특정 신체영향 장소')
-                        ], align='start',multiple=True, index=0)
-            with col31_3_2:
-                if len(SBE_input_work_area_3) > 0:
-                    SBE_input_work_area_3_ = sac.chip([
-                            sac.ChipItem(label='소음발생'),
-                            sac.ChipItem(label='진동발생'),
-                            sac.ChipItem(label='방사선발생')
-                            ], align='start',variant='outline', multiple=True)  
-
-            SBE_input_work_area_list = SBE_input_work_area_1_ + SBE_input_work_area_2_ + SBE_input_work_area_3_
-            st.write(SBE_input_work_area_list)
-
-        with col32: # 장비/공구
-
-            st.subheader('_2.장비/공구 선택_')
-
-            col32_1_1, col32_1_2 = st.columns([1,3]) # 장비/공구 1 - 확장
-            with col32_1_1:
-                SBE_input_work_eq_1 = sac.chip([
-                        sac.ChipItem(label='용접/용단')
-                        ], align='start',multiple=True, index=0)  
-            with col32_1_2:
-                if len(SBE_input_work_eq_1) > 0:
-                    SBE_input_work_eq_1_ = sac.chip([
-                            sac.ChipItem(label='발전용접기'),
-                            sac.ChipItem(label='산소절단기')
-                            ], align='start',variant='outline', multiple=True)  
-
-            col32_2_1, col32_2_2 = st.columns([1,3]) # 장비/공구 2 - 확장
-            with col32_2_1:
-                SBE_input_work_eq_2 = sac.chip([
-                        sac.ChipItem(label='중장비 사용')
-                        ], align='start',multiple=True, index=0)  
-            with col32_2_2:
-                if len(SBE_input_work_eq_2) > 0:
-                    SBE_input_work_eq_2_ = sac.chip([
-                            sac.ChipItem(label='크레인'),
-                            sac.ChipItem(label='고소작업차'),
-                            sac.ChipItem(label='굴삭기'),
-                            sac.ChipItem(label='지게차'),
-                            sac.ChipItem(label='펌프카'),
-                            sac.ChipItem(label='진공차'),
-                            sac.ChipItem(label='Jet Car'),
-                            sac.ChipItem(label='항타기/항발기/천공기')
-                            ], align='start',variant='outline', multiple=True)  
-
-            col32_3_1, col32_3_2 = st.columns([1,3]) # 장비/공구 3 - 확장
-            with col32_3_1:
-                SBE_input_work_eq_3 = sac.chip([
-                        sac.ChipItem(label='전기/달기구/수공구')
-                        ], align='start',multiple=True, index=0)  
-            with col32_3_2:
-                if len(SBE_input_work_eq_3) > 0:
-                    SBE_input_work_eq_3_ = sac.chip([
-                            sac.ChipItem(label='절단기'),
-                            sac.ChipItem(label='파쇄기'),
-                            sac.ChipItem(label='드릴'),
-                            sac.ChipItem(label='발전기/케이블'),
-                            sac.ChipItem(label='수공구'),
-                            sac.ChipItem(label='체인블록/슬링벨트/와이어로프')
-                            ], align='start',variant='outline', multiple=True)  
-
-            col32_4_1, col32_4_2 = st.columns([1,3]) # 장비/공구 4 - 확장
-            with col32_4_1:
-                SBE_input_work_eq_4 = sac.chip([
-                        sac.ChipItem(label='가설물 이용')
-                        ], align='start',multiple=True, index=0)  
-            with col32_4_2:
-                if len(SBE_input_work_eq_4) > 0:
-                    SBE_input_work_eq_4_ = sac.chip([
-                            sac.ChipItem(label='가설비계(강관)'),
-                            sac.ChipItem(label='가설비계(이동식)'),
-                            sac.ChipItem(label='사다리(이동식)')
-                            ], align='start',variant='outline', multiple=True)  
-
-            SBE_input_work_eq_list = SBE_input_work_eq_1_ + SBE_input_work_eq_2_ + SBE_input_work_eq_3_ + SBE_input_work_eq_4_
-            st.write(SBE_input_work_eq_list)
-
-        
-        with col34: #작업 위험 변수 
-
-            st.subheader('_3.작업위험변수 선택_')
-
-            SBE_input_work_risk_factors = risk_function(SBE_input_work_area_list,SBE_input_work_eq_list)
-
-            col34_1_1, col34_1_2 = st.columns([1,3]) # 작업위험변수 1 - 확장
-            with col34_1_1:
-                SBE_input_work_risk_1 = sac.chip([
-                        sac.ChipItem(label='공통 변수')
-                        ], align='start',multiple=True, key="unique_key5")  
-            with col34_1_2:
-                if len(SBE_input_work_risk_1) > 0:
-                    SBE_input_work_risk_1_ = sac.chip(ChipItems(SBE_input_work_risk_factors['sames']), align='start', variant='outline', multiple=True, key="unique_key1")
-
-            col34_2_1, col34_2_2 = st.columns([1,3]) # 작업위험변수 2 - 확장
-            with col34_2_1:
-                SBE_input_work_risk_2 = sac.chip([
-                        sac.ChipItem(label='장소 변수')
-                        ], align='start',multiple=True,  key="unique_key6")  
-            with col34_2_2:
-                if len(SBE_input_work_risk_2) > 0:
-                    SBE_input_work_risk_2_ = sac.chip(ChipItems(SBE_input_work_risk_factors['risk_area']), align='start', variant='outline', multiple=True, key="unique_key2")
-
-            col34_3_1, col34_3_2 = st.columns([1,3]) # 작업위험변수 3 - 확장
-            with col34_3_1:
-                SBE_input_work_risk_3 = sac.chip([
-                        sac.ChipItem(label='장비/공구 변수')
-                        ], align='start',multiple=True, key="unique_key7")  
-            with col34_3_2:
-                if len(SBE_input_work_risk_3) > 0:
-                    SBE_input_work_risk_3_ = sac.chip(ChipItems(SBE_input_work_risk_factors['risk_eq']), align='start', variant='outline', multiple=True, key="unique_key3")
-
-            col34_4_1, col34_4_2 = st.columns([1,3]) # 작업위험변수 4 - 확장
-            with col34_4_1:
-                SBE_input_work_risk_4 = sac.chip([
-                        sac.ChipItem(label='그외 변수')
-                        ], align='start',multiple=True, key="unique_key8")  
-            with col34_4_2:
-                if len(SBE_input_work_risk_4) > 0:
-                    SBE_input_work_risk_4_ = sac.chip(ChipItems(SBE_input_work_risk_factors['etcs']), align='start', variant='outline', multiple=True, key="unique_key4")        
-
-     
+        with st.container():  # 작업 위험 변수 섹션
+            with col33:
+                if 'SBE_input_work_risk_list' not in st.session_state:
+                    st.session_state['SBE_input_work_risk_list'] = []
+                risk_headers = ['공통 변수', '장소 변수', '장비/공구 변수', '그외 변수']
+                SBE_input_work_risk_factors = risk_function(st.session_state['SBE_input_work_area_list'], st.session_state['SBE_input_work_eq_list'])
+                risk_items = [
+                    SBE_input_work_risk_factors['sames'],
+                    SBE_input_work_risk_factors['risk_area'],
+                    SBE_input_work_risk_factors['risk_eq'],
+                    SBE_input_work_risk_factors['etcs']
+                ]
+                SBE_input_work_risk_list = create_section('3.작업위험변수 선택', risk_headers, risk_items, 'work_risk')
+                st.session_state['SBE_input_work_risk_list'] = SBE_input_work_risk_list
+                st.write(st.session_state['SBE_input_work_risk_list'])
 
 
+        with st.container():
+            if st.button('추가'):
+                # 초기 DataFrame 설정
+                if 'df_sbe' not in st.session_state:
+                    st.session_state['df_sbe'] = pd.DataFrame({
+                        '작업단계': [],
+                        '작업장소': [], 
+                        '장비/공구': [], 
+                        '작업위험변수': [], 
+                        '유해작업요인': [], 
+                        '위험등급': [], 
+                        '감소대책': []
+                    })
+                # 작업장소와 장비/공구 리스트를 문자열로 변환하고, 각 항목 사이에 쉼표를 추가하여 하나의 문자열로 합칩니다.
+                # 작업 위험변수는 이미 리스트 형태로 저장되어 있으므로, 이를 사용합니다.
+                작업장소_str = ', '.join(st.session_state['SBE_input_work_area_list'])
+                장비공구_str = ', '.join(st.session_state['SBE_input_work_eq_list'])
+                작업위험변수_list = st.session_state['SBE_input_work_risk_list']
 
+                # 가장 긴 리스트의 길이를 기준으로 합니다.
+                default_length = len(작업위험변수_list)
+
+                # 데이터프레임 생성
+                # 모든 컬럼에 대해 같은 길이를 갖도록 조정합니다.
+                df_sbe = pd.DataFrame({
+                    '작업단계': [SBE_input_work_step] * default_length,
+                    '작업장소': [작업장소_str] * default_length,
+                    '장비/공구': [장비공구_str] * default_length,
+                    '작업위험변수': 작업위험변수_list,
+                    '유해작업요인': [None] * default_length, 
+                    '위험등급': [None] * default_length, 
+                    '감소대책': [None] * default_length
+                })
+
+                # 생성된 데이터프레임을 세션 상태에 저장된 데이터프레임과 합칩니다.
+                st.session_state['df_sbe'] = pd.concat([st.session_state['df_sbe'], df_sbe]).reset_index(drop=True)
+
+    with st.container():
+        # st.data_editor 대신 st.dataframe 사용
+        edited_df_sbe = st.data_editor(st.session_state['df_sbe'], key='df_sbe_editor', num_rows="dynamic", use_container_width=True, hide_index=True)
+        if st.session_state['df_sbe'] is not None:
+            st.session_state['df_sbe'] = edited_df_sbe
